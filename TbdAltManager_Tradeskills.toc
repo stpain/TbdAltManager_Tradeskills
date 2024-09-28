@@ -1,0 +1,7 @@
+## Name: TbdAltManager_Tradeskills
+## Version: 0.1
+## Interface: 100000
+## Notes: Character module for TbdAltManager
+## SavedVariables: TbdAltManager_Tradeskills_SavedVariables
+
+TbdAltManager_Tradeskills.lua
