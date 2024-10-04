@@ -82,12 +82,99 @@ function TbdAltManager_Tradeskills.Api.GetCharacterDataByUID(characterUID)
     end)
 end
 
+--[[
+    bit awkward at the moment
+
+    this returns a table as such
+
+    t[recipeID] = {
+        name
+        professionID
+        professionName
+        parentProfessionID 
+        parentProfessionName
+        crafters = {
+            characterUID
+        }
+    }
+]]
+function TbdAltManager_Tradeskills.Api.SearchFor(searchTerm)
+
+    local ret = {}
+
+    for _, character in CharacterDataProvider:EnumerateEntireRange() do
+
+        if character.profession1Data and character.profession1Data.categories then
+
+            for profID, info in pairs(character.profession1Data.categories) do
+
+                if info.recipeData then
+                    for _, recipeInfo in ipairs(info.recipeData) do
+                        if recipeInfo.name:find(searchTerm, nil, true) then
+
+                            if not ret[recipeInfo.recipeID] then
+                                ret[recipeInfo.recipeID] = {
+                                    name = recipeInfo.name,
+                                    professionID = info.professionID,
+                                    professionName = info.professionName,
+                                    parentProfessionID = info.parentProfessionID,
+                                    parentProfessionName = info.parentProfessionName,
+
+                                    crafters = {},
+                                }
+                            end
+                            table.insert(ret[recipeInfo.recipeID].crafters, character.uid)
+                        end
+                    end
+                end
+            end
+        end
+
+        if character.profession2Data and character.profession2Data.categories then
+
+            for profID, info in pairs(character.profession2Data.categories) do
+
+                if info.recipeData then
+                    for _, recipeInfo in ipairs(info.recipeData) do
+                        if recipeInfo.name:find(searchTerm, nil, true) then
+
+                            if not ret[recipeInfo.recipeID] then
+                                ret[recipeInfo.recipeID] = {
+                                    name = recipeInfo.name,
+                                    professionID = info.professionID,
+                                    professionName = info.professionName,
+                                    parentProfessionID = info.parentProfessionID,
+                                    parentProfessionName = info.parentProfessionName,
+
+                                    crafters = {},
+                                }
+                            end
+                            table.insert(ret[recipeInfo.recipeID].crafters, character.uid)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+
+    return ret;
+end
 
 function TbdAltManager_Tradeskills.Api.GetTradeskillDataForParentID(parentID)
     
     local ret = {}
 
     for _, character in CharacterDataProvider:EnumerateEntireRange() do
+
+        if parentID == 185 then
+            if type(character.cooking) == "table" then
+                table.insert(ret, {
+                    characterUID = character.uid,
+                    data = character.cooking
+                })
+            end
+        end
 
         if character.profession1 == parentID then
             table.insert(ret, {
@@ -121,17 +208,17 @@ local eventsToRegister = {
 }
 
 --Frame to setup event listening
-local CharacterEventFrame = CreateFrame("Frame")
+local TradeskillsEventFrame = CreateFrame("Frame")
 for _, event in ipairs(eventsToRegister) do
-    CharacterEventFrame:RegisterEvent(event)
+    TradeskillsEventFrame:RegisterEvent(event)
 end
-CharacterEventFrame:SetScript("OnEvent", function(self, event, ...)
+TradeskillsEventFrame:SetScript("OnEvent", function(self, event, ...)
     if self[event] then
         self[event](self, ...)
     end
 end)
 
-function CharacterEventFrame:SetKeyValue(key, value)
+function TradeskillsEventFrame:SetKeyValue(key, value)
     if self.character then
         self.character[key] = value;
         TbdAltManager_Tradeskills.CallbackRegistry:TriggerEvent("Character_OnChanged", self.character)
@@ -139,8 +226,25 @@ function CharacterEventFrame:SetKeyValue(key, value)
     end
 end
 
-function CharacterEventFrame:SetTradeskillData(tradeskillData)
+function TradeskillsEventFrame:SetTradeskillData(tradeskillData)
     if self.character then
+
+        if tradeskillData.parentProfessionID == 185 then
+
+            --remove for release
+            if type(self.character.cooking) ~= "table" then
+                self.character.cooking = {}
+            end
+            
+            if not self.character.cooking.name then
+                self.character.cooking = {
+                    name = tradeskillData.parentProfessionName,
+                    categories = {}
+                }
+            end
+
+            self.character.cooking.categories[tradeskillData.professionID] = tradeskillData;
+        end
 
         if self.character.profession1 == tradeskillData.parentProfessionID then
 
@@ -170,7 +274,7 @@ function CharacterEventFrame:SetTradeskillData(tradeskillData)
     end
 end
 
-function CharacterEventFrame:ADDON_LOADED(...)
+function TradeskillsEventFrame:ADDON_LOADED(...)
     if (... == addonName) then
         if TbdAltManager_Tradeskills_SavedVariables == nil then
 
@@ -191,13 +295,13 @@ function CharacterEventFrame:ADDON_LOADED(...)
     end
 end
 
-function CharacterEventFrame:PLAYER_ENTERING_WORLD()
+function TradeskillsEventFrame:PLAYER_ENTERING_WORLD()
     C_Timer.After(1.0, function()
         self:InitializeCharacter()
     end)
 end
 
-function CharacterEventFrame:InitializeCharacter()
+function TradeskillsEventFrame:InitializeCharacter()
     
     local account = "Default"
     local realm = GetRealmName()
@@ -209,30 +313,15 @@ function CharacterEventFrame:InitializeCharacter()
 
     self.character = CharacterDataProvider:FindCharacterByUID(self.characterUID)
 
-    local prof1, prof2, archaeology, fishing, cooking = GetProfessions()
-
-    if prof1 then
-        self:SetKeyValue("profession1", select(7, GetProfessionInfo(prof1)))
-    end
-    if prof2 then
-        self:SetKeyValue("profession2", select(7, GetProfessionInfo(prof2)))
-    end
-
-    if archaeology then
-        self:SetKeyValue("archaeology", select(7, GetProfessionInfo(archaeology)))
-    end
-    if fishing then
-        self:SetKeyValue("fishing", select(7, GetProfessionInfo(fishing)))
-    end
-    if cooking then
-        self:SetKeyValue("cooking", select(7, GetProfessionInfo(cooking)))
-    end
+    self:ScanTradeskills()
 
     if ViragDevTool_AddData then
         ViragDevTool_AddData(TbdAltManager_Tradeskills_SavedVariables, addonName)
     end
 
     EventRegistry:RegisterCallback("Professions.SelectSkillLine", function(fooID, info)
+
+        self:ScanTradeskills()
 
         local tradeskillData = {}
 
@@ -247,8 +336,12 @@ function CharacterEventFrame:InitializeCharacter()
 
             --ViragDevTool_AddData(ProfessionsFrame.CraftingPage.RecipeList.ScrollBox:GetDataProvider(), "DataProvider")
 
+
+            --[[
+                after trying several ways this seems to work best
+            ]]
+
             for k, element in ProfessionsFrame.CraftingPage.RecipeList.ScrollBox:GetDataProvider():EnumerateEntireRange() do
-                --ViragDevTool_AddData(element, k)
 
                 if element.data and element.data.recipeInfo then
                     local capture = {}
@@ -300,7 +393,7 @@ function CharacterEventFrame:InitializeCharacter()
             -- end
 
             if ViragDevTool_AddData then
-                ViragDevTool_AddData(tradeskillData, fooID)
+                ViragDevTool_AddData(tradeskillData, tradeskillData.parentTradeSkillID)
             end
 
             self:SetTradeskillData(tradeskillData)
@@ -308,4 +401,29 @@ function CharacterEventFrame:InitializeCharacter()
 
     end)
 
+end
+
+function TradeskillsEventFrame:ScanTradeskills()
+    local prof1, prof2, archaeology, fishing, cooking = GetProfessions()
+    if prof1 then
+        self:SetKeyValue("profession1", select(7, GetProfessionInfo(prof1)))
+    end
+    if prof2 then
+        self:SetKeyValue("profession2", select(7, GetProfessionInfo(prof2)))
+    end
+
+    -- if archaeology then
+    --     self:SetKeyValue("archaeology", select(7, GetProfessionInfo(archaeology)))
+    -- end
+    -- if fishing then
+    --     self:SetKeyValue("fishing", select(7, GetProfessionInfo(fishing)))
+    -- end
+    -- if cooking then
+    --     self:SetKeyValue("cooking", select(7, GetProfessionInfo(cooking)))
+    -- end
+end
+
+--https://warcraft.wiki.gg/wiki/API_C_TradeSkillUI.GetRecipeSchematic
+function TradeskillsEventFrame:GetRecipeReagentData(recipe)
+    
 end
