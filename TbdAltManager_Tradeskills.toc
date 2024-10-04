@@ -1,5 +1,5 @@
 ## Name: TbdAltManager_Tradeskills
-## Version: 0.11
+## Version: 0.12
 ## Interface: 100000
 ## Notes: Character module for TbdAltManager
 ## SavedVariables: TbdAltManager_Tradeskills_SavedVariables
