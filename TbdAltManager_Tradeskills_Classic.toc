@@ -1,10 +1,12 @@
 ## Name: TbdAltManager_Tradeskills
-## Version: 1.0
+## Version: 1.01
 ## Interface: 11507
 ## Notes: Character module for TbdAltManager
 ## SavedVariables: TbdAltManager_Tradeskills_SavedVariables, RecipeSpellData, TbdAltManagerTradeskillsConfig
 ## Dependencies: TbdAltManager, TbdWidgets
 ## Group: TbdAltManager
+
+## X-Curse-Project-ID: 1111311
 
 Data\Classic.lua
 #Data\TBC.lua
